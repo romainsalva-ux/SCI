@@ -12,11 +12,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Compta SCI" />
 
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 
 <style>
 :root{--bg:#E9EDF1;--surface:#fff;--ink:#1B2A3A;--soft:#64748B;--line:#DDE3EA;
@@ -185,6 +184,7 @@ border-radius:20px;padding:5px 6px 5px 12px;font-size:13px;}
 <div id="root"></div>
 
 <script type="text/babel" data-presets="react">
+/* @jsxRuntime classic */ /* @jsx React.createElement */ /* @jsxFrag React.Fragment */
 const { useState, useEffect, useRef, useMemo } = React;
 
 /* ============================ Icônes ============================ */
@@ -364,8 +364,21 @@ async function analyzeStored(stored, file){
     return callClaude([{type:"text",text:prompt+"\n\nContenu :\n"+txt.slice(0,12000)}]);
   }
   if(name.endsWith(".docx")){
-    const buf=await file.arrayBuffer(); const { value }=await mammoth.extractRawText({arrayBuffer:buf});
-    return callClaude([{type:"text",text:prompt+"\n\nContenu :\n"+value.slice(0,12000)}]);
+    // Extraction de texte brut depuis un .docx (format ZIP contenant du XML)
+    try{
+      const buf=await file.arrayBuffer();
+      const { JSZip } = window; // si JSZip disponible
+      if(typeof JSZip!=="undefined"){
+        const zip=await JSZip.loadAsync(buf);
+        const xmlFile=zip.file("word/document.xml");
+        if(xmlFile){
+          const xml=await xmlFile.async("string");
+          const txt=xml.replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().slice(0,12000);
+          return callClaude([{type:"text",text:prompt+"\n\nContenu :\n"+txt}]);
+        }
+      }
+    }catch(e){}
+    throw new Error("Fichier Word (.docx) non lisible. Convertis-le en PDF ou copie-colle le texte manuellement.");
   }
   throw new Error("Format non géré. Utilise PDF, Excel, Word ou une image.");
 }
